@@ -10,7 +10,7 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen font-sans text-gray-800">
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800 relative">
 
     <nav class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex flex-col sm:flex-row justify-between items-center sticky top-0 z-10 gap-3 sm:gap-0">
         <div class="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
@@ -61,16 +61,64 @@
 
             <div id="issuesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 </div>
+
         </div>
+
     </main>
-    
+
+    <div id="issueModal" class="fixed inset-0 bg-gray-900 bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50 hidden px-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[636px] p-6 sm:p-8 relative">
+            
+            <div id="modalLoading" class="flex flex-col items-center justify-center py-16 hidden">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-[#5200FF]"></div>
+                <p class="text-gray-500 mt-4 text-sm">Fetching issue details...</p>
+            </div>
+
+            <div id="modalContent">
+                <h2 id="m-title" class="text-2xl font-bold text-[#1f2937] mb-3 leading-tight">Issue Title</h2>
+                
+                <div class="flex flex-wrap items-center gap-2.5 text-[13px] text-gray-500 mb-6">
+                    <span id="m-status" class="bg-[#00c48c] text-white px-3 py-0.5 rounded-full font-medium text-[12px]">Opened</span>
+                    <span>•</span>
+                    <span>Opened by <span id="m-author" class="font-medium text-gray-700">Author Name</span></span>
+                    <span>•</span>
+                    <span id="m-date">Date</span>
+                </div>
+
+                <div id="m-labels" class="flex flex-wrap gap-2 mb-6">
+                    </div>
+
+                <p id="m-desc" class="text-[#4b5563] text-[15px] leading-relaxed mb-8">
+                    Description goes here.
+                </p>
+
+                <div class="bg-[#f9fafb] rounded-xl p-5 flex flex-row justify-between items-center mb-8 border border-gray-100">
+                    <div>
+                        <p class="text-[13px] text-gray-500 mb-1">Assignee:</p>
+                        <p id="m-assignee" class="font-bold text-gray-900 text-[15px]">Unassigned</p>
+                    </div>
+                    <div>
+                        <p class="text-[13px] text-gray-500 mb-1">Priority:</p>
+                        <span id="m-priority" class="bg-[#ef4444] text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-block">HIGH</span>
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="closeModal()" class="bg-[#5200FF] hover:bg-[#4300d1] text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let allIssuesData = []; 
         let currentTab = 'all';
 
-        // --- API CONNECTION POINTS ---
         const API_ALL = 'https://phi-lab-server.vercel.app/api/v1/lab/issues';
         const API_SEARCH = 'https://phi-lab-server.vercel.app/api/v1/lab/issues/search?q=';
+        const API_SINGLE = 'https://phi-lab-server.vercel.app/api/v1/lab/issue/'; 
 
         document.addEventListener('DOMContentLoaded', () => {
             fetchIssues(API_ALL);
@@ -132,6 +180,15 @@
             return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
         }
 
+        function formatModalDate(dateString) {
+            if (!dateString) return 'Unknown Date';
+            const date = new Date(dateString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
         function getPriorityStyle(priority) {
             const p = (priority || '').toLowerCase();
             if (p === 'high') return 'bg-red-50 text-red-500';
@@ -161,7 +218,7 @@
             issues.forEach(issue => {
                 const isClosed = issue.status && issue.status.toLowerCase() === 'closed';
                 const borderClass = isClosed ? 'border-t-[#9b51e0]' : 'border-t-[#23c961]';
-                const statusIcon = isClosed ? 'Closed- Status .png' : 'Open-Status.png';
+                const statusIcon = isClosed ? 'Closed-Status.png' : 'Open-Status.png';
                 
                 let labelsHtml = '';
                 if (issue.labels && Array.isArray(issue.labels)) {
@@ -199,13 +256,79 @@
                     </div>
                 `;
 
-                card.addEventListener('click', () => {
-                    alert(`Card Clicked! We will fetch details for Issue ID: ${card.dataset.id} next.`);
-                });
+                card.addEventListener('click', () => openModal(card.dataset.id));
 
                 grid.appendChild(card);
             });
         }
+
+        async function openModal(id) {
+            const modal = document.getElementById('issueModal');
+            const modalContent = document.getElementById('modalContent');
+            const modalLoading = document.getElementById('modalLoading');
+
+            modal.classList.remove('hidden');
+            modalContent.classList.add('hidden');
+            modalLoading.classList.remove('hidden');
+
+            try {
+                const response = await fetch(API_SINGLE + id);
+                const issueData = await response.json();
+                
+                const issue = issueData.data ? issueData.data : issueData;
+
+                document.getElementById('m-title').innerText = issue.title || 'Untitled Issue';
+                document.getElementById('m-author').innerText = issue.author || 'Unknown';
+                document.getElementById('m-date').innerText = formatModalDate(issue.createdAt);
+                document.getElementById('m-desc').innerText = issue.description || 'No description provided.';
+                document.getElementById('m-assignee').innerText = issue.assignee || issue.author || 'Unassigned';
+
+                const statusBadge = document.getElementById('m-status');
+                const isClosed = issue.status && issue.status.toLowerCase() === 'closed';
+                statusBadge.innerText = isClosed ? 'Closed' : 'Opened';
+                statusBadge.className = `text-white px-3 py-1 rounded-full font-bold tracking-wide text-[11px] uppercase ${isClosed ? 'bg-[#9b51e0]' : 'bg-[#00c48c]'}`;
+
+                const priorityBadge = document.getElementById('m-priority');
+                const p = (issue.priority || '').toLowerCase();
+                let pColor = 'bg-gray-400';
+                if (p === 'high') pColor = 'bg-[#ef4444]'; 
+                else if (p === 'medium') pColor = 'bg-[#f59e0b]';
+                else if (p === 'low') pColor = 'bg-[#d1d5db] text-gray-700'; 
+                
+                priorityBadge.className = `${pColor} text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-block`;
+                priorityBadge.innerText = issue.priority || 'Medium';
+
+               
+                const labelsContainer = document.getElementById('m-labels');
+                labelsContainer.innerHTML = '';
+                if (issue.labels && Array.isArray(issue.labels)) {
+                    issue.labels.forEach(label => {
+                        const span = document.createElement('span');
+                        span.className = `text-[10px] font-bold px-3 py-1 rounded-full border uppercase ${getLabelStyle(label)} whitespace-nowrap`;
+                        span.innerText = label;
+                        labelsContainer.appendChild(span);
+                    });
+                }
+
+               
+                modalLoading.classList.add('hidden');
+                modalContent.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error fetching single issue:', error);
+                modalLoading.innerHTML = '<p class="text-red-500 font-medium">Failed to load issue details. Please close and try again.</p>';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('issueModal').classList.add('hidden');
+        }
+
+        document.getElementById('issueModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeModal();
+            }
+        });
     </script>
 </body>
 </html>
