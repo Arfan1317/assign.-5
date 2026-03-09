@@ -63,5 +63,90 @@
                 </div>
         </div>
     </main>
+    
+    <script>
+        let allIssuesData = []; 
+        let currentTab = 'all';
+
+        // --- API CONNECTION POINTS ---
+        const API_ALL = 'https://phi-lab-server.vercel.app/api/v1/lab/issues';
+        const API_SEARCH = 'https://phi-lab-server.vercel.app/api/v1/lab/issues/search?q=';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchIssues(API_ALL);
+        });
+
+        document.getElementById('searchInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                const searchText = e.target.value.trim();
+                if (searchText) {
+                    fetchIssues(API_SEARCH + encodeURIComponent(searchText));
+                } else {
+                    fetchIssues(API_ALL);
+                }
+            }
+        });
+
+        async function fetchIssues(url) {
+            const spinner = document.getElementById('loadingSpinner');
+            const grid = document.getElementById('issuesGrid');
+            
+            spinner.classList.remove('hidden');
+            grid.innerHTML = ''; 
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                allIssuesData = Array.isArray(data) ? data : (data.data || data.issues || []);
+                filterIssues(currentTab);
+            } catch (error) {
+                console.error('Error fetching issues:', error);
+                grid.innerHTML = `<p class="text-red-500 text-center col-span-full">Failed to load issues.</p>`;
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        function filterIssues(status) {
+            currentTab = status;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-[#5200FF]', 'text-white', 'border-transparent');
+                btn.classList.add('bg-white', 'text-gray-600', 'border-gray-200');
+            });
+            const activeBtn = document.getElementById(`tab-${status}`);
+            activeBtn.classList.remove('bg-white', 'text-gray-600', 'border-gray-200');
+            activeBtn.classList.add('bg-[#5200FF]', 'text-white', 'border-transparent');
+
+            let filteredData = allIssuesData;
+            if (status !== 'all') {
+                filteredData = allIssuesData.filter(issue => issue.status && issue.status.toLowerCase() === status);
+            }
+
+            renderIssues(filteredData);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown Date';
+            const date = new Date(dateString);
+            return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+        }
+
+        function getPriorityStyle(priority) {
+            const p = (priority || '').toLowerCase();
+            if (p === 'high') return 'bg-red-50 text-red-500';
+            if (p === 'medium') return 'bg-amber-50 text-amber-500';
+            if (p === 'low') return 'bg-gray-100 text-gray-500';
+            return 'bg-gray-100 text-gray-500';
+        }
+
+        function getLabelStyle(label) {
+            const l = (label || '').toLowerCase();
+            if (l === 'bug') return 'text-red-500 bg-red-50 border-red-200';
+            if (l === 'help wanted') return 'text-amber-600 bg-amber-50 border-amber-300';
+            if (l === 'enhancement') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+            return 'text-purple-600 bg-purple-50 border-purple-200';
+        }
+    </script>
 </body>
 </html>
